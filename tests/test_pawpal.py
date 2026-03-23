@@ -195,3 +195,126 @@ def test_generate_plan_skips_completed(scheduler):
     scheduler.mark_complete(done)
     plan = scheduler.generate_plan()
     assert done not in plan
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: empty pool
+# ---------------------------------------------------------------------------
+
+def test_generate_plan_empty_pool_returns_empty(scheduler):
+    """generate_plan on an empty pool returns an empty list, no crash."""
+    assert scheduler.generate_plan() == []
+
+def test_sort_by_time_empty_pool(scheduler):
+    """sort_by_time on an empty pool returns an empty list."""
+    assert scheduler.sort_by_time() == []
+
+def test_filter_incomplete_empty_pool(scheduler):
+    """filter_incomplete on an empty pool returns an empty list."""
+    assert scheduler.filter_incomplete() == []
+
+def test_detect_conflicts_empty_pool(scheduler):
+    """detect_conflicts on an empty pool returns no warnings."""
+    assert scheduler.detect_conflicts() == []
+
+def test_explain_plan_empty_plan(scheduler):
+    """explain_plan with an empty plan mentions no tasks fitting."""
+    explanation = scheduler.explain_plan([])
+    assert "No tasks fit" in explanation
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: zero time budget
+# ---------------------------------------------------------------------------
+
+def test_generate_plan_zero_budget():
+    """No tasks are scheduled when the owner has zero minutes available."""
+    owner = Owner(name="Alex", time_available_min=0)
+    pet = Pet(name="Biscuit", species="dog")
+    s = Scheduler(owner, pet)
+    s.add_task(Task("Walk", "walk", 30, 1))
+    plan = s.generate_plan()
+    assert plan == []
+    assert len(s.excluded) == 1
+
+def test_generate_plan_exact_budget_fit(scheduler):
+    """A task whose duration exactly equals the budget is included."""
+    scheduler.add_task(Task("Long walk", "walk", 60, 1))
+    plan = scheduler.generate_plan()
+    assert len(plan) == 1
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: sorting
+# ---------------------------------------------------------------------------
+
+def test_sort_by_time_all_no_start_time(scheduler):
+    """Tasks with no start_time all sort to the end; order among them is stable."""
+    scheduler.add_task(Task("A", "walk",    30, 1))
+    scheduler.add_task(Task("B", "feeding", 10, 2))
+    sorted_tasks = scheduler.sort_by_time()
+    assert all(t.start_time == "" for t in sorted_tasks)
+
+def test_sort_by_time_mixed(scheduler):
+    """Timed tasks come before untimed tasks."""
+    scheduler.add_task(Task("Unscheduled", "enrichment", 20, 3))
+    scheduler.add_task(Task("Early walk",  "walk",       30, 1, start_time="06:00"))
+    sorted_tasks = scheduler.sort_by_time()
+    assert sorted_tasks[0].start_time == "06:00"
+    assert sorted_tasks[-1].start_time == ""
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: conflicts
+# ---------------------------------------------------------------------------
+
+def test_three_way_conflict(scheduler):
+    """Three tasks at the same time produce two conflict warnings."""
+    scheduler.add_task(Task("A", "walk",    10, 1, start_time="09:00"))
+    scheduler.add_task(Task("B", "feeding", 10, 2, start_time="09:00"))
+    scheduler.add_task(Task("C", "meds",    10, 3, start_time="09:00"))
+    warnings = scheduler.detect_conflicts()
+    assert len(warnings) == 2
+
+def test_conflict_only_for_timed_tasks(scheduler):
+    """Two tasks with no start_time do not trigger a conflict."""
+    scheduler.add_task(Task("A", "walk",    30, 1))
+    scheduler.add_task(Task("B", "feeding", 10, 1))
+    assert scheduler.detect_conflicts() == []
+
+
+# ---------------------------------------------------------------------------
+# Edge cases: recurring tasks
+# ---------------------------------------------------------------------------
+
+def test_mark_complete_once_leaves_pool_empty(scheduler):
+    """Completing the only once-off task leaves an empty pool."""
+    task = Task("Vet visit", "meds", 30, 1, frequency="once")
+    scheduler.add_task(task)
+    scheduler.mark_complete(task)
+    assert scheduler.tasks == []
+
+def test_recurring_task_inherits_notes(scheduler):
+    """The next occurrence of a recurring task keeps the original notes."""
+    today = date.today()
+    task = Task("Meds", "meds", 5, 1, frequency="daily",
+                due_date=today, notes="give with food")
+    scheduler.add_task(task)
+    scheduler.mark_complete(task)
+    next_task = next(t for t in scheduler.tasks if t.name == "Meds")
+    assert next_task.notes == "give with food"
+
+def test_recurring_task_not_marked_complete(scheduler):
+    """The newly created recurring task starts as incomplete."""
+    today = date.today()
+    task = Task("Walk", "walk", 30, 1, frequency="daily", due_date=today)
+    scheduler.add_task(task)
+    scheduler.mark_complete(task)
+    next_task = next(t for t in scheduler.tasks if t.name == "Walk")
+    assert next_task.completed is False
+
+def test_mark_complete_unknown_task_raises(scheduler):
+    """mark_complete on a task not in the pool raises ValueError."""
+    ghost = Task("Ghost", "walk", 10, 1)
+    with pytest.raises(ValueError):
+        scheduler.mark_complete(ghost)
