@@ -4,13 +4,17 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+The design uses four classes: Task, Pet, Owner, and Scheduler.
+Task is a dataclass for one unit of pet care (walk, feeding, grooming, etc.). It stores name, category, duration in minutes, priority (1 = highest), and an is_valid() method to catch bad input.
+Pet is a pure data dataclass with name, species, breed, and age. It has no methods since the app centers on one owner/pet pair and the pet itself does not manage tasks.
+Owner stores the user's constraints: time_available_min and a preferences list. These are the inputs the Scheduler needs to build a plan.
+Scheduler is a regular class (not a dataclass) because its value is in behavior, not data. It holds one Owner, one Pet, and a task pool. Its two core methods are generate_plan() and explain_plan().
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Copilot review of #file:pawpal_system.py flagged two issues.
+First, explain_plan() only received the included tasks, so it could not explain why tasks were dropped. The fix was adding a self.excluded list that generate_plan() populates, giving explain_plan() access to both sides.
+Second, there was no way to edit a task without deleting and re-adding it. Since the README requires add/edit support, an edit_task() stub was added to Scheduler.
 
 ---
 
