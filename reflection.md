@@ -36,13 +36,13 @@ This is reasonable for the current scope because most users will not assign over
 
 **a. How you used AI**
 
-- How did you use AI tools during this project (for example: design brainstorming, debugging, refactoring)?
-- What kinds of prompts or questions were most helpful?
+- Copilot generated the initial Mermaid class diagram from a verbal description, which was faster than writing Mermaid syntax by hand. Inline chat then helped flesh out method stubs for generate_plan() and explain_plan() once the structure was already decided. In the testing phase it suggested edge cases (empty pool, zero budget, three-way conflict) that were not in the original test plan.
+- The most useful prompt pattern was a specific file reference plus a concrete question. Asking "does #file:pawpal_system.py have any missing relationships?" produced actionable output. Open-ended questions like "how should I build a scheduler?" did not.
 
 **b. Judgment and verification**
 
-- Describe one moment where you did not accept an AI suggestion as-is.
-- How did you evaluate or verify what the AI suggested?
+- Copilot suggested putting task management methods (add_task, remove_task, get_tasks) on the Pet class. This was rejected because it would have split scheduling logic across two classes and made Scheduler a thin wrapper with no real responsibility.
+- The suggestion was evaluated by tracing a "mark task complete" flow under both designs. With task management on Pet, completing a recurring task would require Pet to call back into Scheduler, creating a circular dependency. With it on Scheduler the flow is linear and there is one place to look when a bug surfaces.
 
 ---
 
@@ -50,13 +50,13 @@ This is reasonable for the current scope because most users will not assign over
 
 **a. What you tested**
 
-- What behaviors did you test?
-- Why were these tests important?
+- The suite covers five categories: task validation, pool management, recurring logic, sorting and filtering, and scheduling. Validation checks that is_valid() rejects empty names, zero durations, bad priorities, and unrecognised frequency strings. Pool management verifies that add_task, remove_task, and edit_task raise ValueError on bad input. Recurring logic confirms next-day and next-week due dates, that notes carry forward, and that new tasks start incomplete. Scheduling tests verify the plan never exceeds the budget, priority ordering is respected, excluded tasks are logged, and completed tasks are never re-scheduled.
+- These behaviors were prioritised because they are the core contract the UI depends on. If generate_plan silently exceeded the budget the UI would show incorrect metrics. If recurring tasks did not create next occurrences the app would silently lose tasks after one day.
 
 **b. Confidence**
 
-- How confident are you that your scheduler works correctly?
-- What edge cases would you test next if you had more time?
+- Confidence is high for the happy paths and the edge cases currently covered.
+- The main gap is duration-based conflict detection. The current check flags exact start-time matches only, so a 30-minute task at 08:00 and a 10-minute task at 08:20 would not be flagged even though they overlap. Testing overlap properly would require parsing HH:MM into integers and checking interval ranges. That would be the first expansion given more time.
 
 ---
 
@@ -64,12 +64,13 @@ This is reasonable for the current scope because most users will not assign over
 
 **a. What went well**
 
-- What part of this project are you most satisfied with?
+- Building and testing the logic layer before writing the UI. Because pawpal_system.py had a clean tested interface by the time app.py was written, every UI button mapped directly to an existing method call with no last-minute backend redesign. Debugging was also straightforward: if something looked wrong in the app the first question was whether the backend method had a test covering that case, which usually pointed to the bug immediately.
 
 **b. What you would improve**
 
-- If you had another iteration, what would you improve or redesign?
+- Conflict detection would be the first redesign target. The fix would be to store start times as integers (minutes since midnight) and check whether any two tasks' intervals overlap, then update is_valid() to enforce the format.
+- A second improvement would be applying owner.preferences automatically. For example, a preference string "morning walks" could bias walk tasks toward earlier start times during plan generation rather than just printing the preferences at the bottom of the explanation.
 
 **c. Key takeaway**
 
-- What is one important thing you learned about designing systems or working with AI on this project?
+- AI is most useful when the human has already decided what the system should do. Copilot generated useful code for generate_plan() once the method signature, the role of self.excluded, and the greedy-by-priority strategy were already defined. When the design was vague the suggestions were generic and needed significant revision. The UML and skeleton phases were not just documentation; they gave the AI enough context to produce output that could actually be used.
