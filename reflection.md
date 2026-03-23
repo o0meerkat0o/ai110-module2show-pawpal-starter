@@ -22,13 +22,13 @@ Second, there was no way to edit a task without deleting and re-adding it. Since
 
 **a. Constraints and priorities**
 
-- What constraints does your scheduler consider (for example: time, priority, preferences)?
-- How did you decide which constraints mattered most?
+The scheduler considers two constraints: total time available (time_available_min) and task priority. Priority is the primary sort key; the time budget acts as a hard cutoff. Owner preferences are stored but not yet applied automatically.
+Priority was chosen as the main constraint because it is the most direct signal of what the owner actually cares about. Time is a hard physical limit, so it serves as the budget after priority ordering is done.
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+Conflict detection uses exact start_time string matching rather than checking whether two tasks' time windows overlap (start_time + duration_min). Two tasks at "08:00" are flagged; a 30-minute task at "08:00" and a 10-minute task at "08:20" are not, even though they overlap.
+This is reasonable for the current scope because most users will not assign overlapping but non-identical start times, and duration-based overlap detection would require parsing HH:MM strings into integers and comparing ranges, adding complexity for a case that is rare in practice. The warning message is informational, not a hard block, so a false negative here is acceptable.
 
 ---
 
